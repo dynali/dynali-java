@@ -1,7 +1,7 @@
 package com.dynali;
 
-class DynaliException extends Exception {
-    DynaliException(int code, String message) {
+public class DynaliException extends Exception {
+    public DynaliException(int code, String message) {
         System.out.println("[" + code + "] " + message);
     }
 }

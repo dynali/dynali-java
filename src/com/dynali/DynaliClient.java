@@ -1,5 +1,10 @@
 package com.dynali;
 
+import com.dynali.action.DynaliAction;
+import com.dynali.action.DynaliActionDefault;
+import com.dynali.action.MyIPAction;
+import com.dynali.response.MyIPResponse;
+import com.dynali.response.Response;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -9,6 +14,7 @@ import org.apache.http.impl.client.BasicResponseHandler;
 import org.apache.http.impl.client.HttpClientBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import static java.lang.Thread.sleep;
@@ -16,54 +22,86 @@ import static java.lang.Thread.sleep;
 public class DynaliClient {
     private static final String ENDPOINT_LIVE = "https://api.dynali.net/nice/";
     private static final String ENDPOINT_DEBUG = "https://debug.dynali.net/nice/";
+    private DynaliEnvironmentTarget DynaliEnvironment = DynaliEnvironmentTarget.LIVE;
 
-    public static String retrieveMyIP() throws IOException, DynaliException {
-        StringEntity postdata = new StringEntity("{\"action\":\"myip\"}");
-        String serializedResponse = call(postdata, false);
-        ObjectMapper mapper = new ObjectMapper();
-        MyIPResponse deserializedResponse = mapper.readValue(serializedResponse, MyIPResponse.class);
-        if (deserializedResponse.getCode() == 200) {
+    public enum DynaliEnvironmentTarget {DEBUG, LIVE}
+
+    public String retrieveMyIP() throws IOException, DynaliException {
+        MyIPResponse deserializedResponse = (MyIPResponse) executeAction(new MyIPAction(), MyIPResponse.class);
+        if (isResponseSuccessful(deserializedResponse.getCode())) {
             return deserializedResponse.getData().getIp();
         }
         throw new DynaliException(deserializedResponse.getCode(), deserializedResponse.getMessage());
     }
 
-    private static String call(StringEntity params, boolean useDevEnv) throws IOException {
-        HttpPost request = prepareRequest(params, useDevEnv);
+    private <R extends Response> Response executeAction(DynaliAction action, Class<R> responseClass) throws IOException, DynaliException {
+        String serializedResponse = call(action);
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readValue(serializedResponse, responseClass);
+    }
+
+    private <R extends Response> CompletableFuture<Response> executeActionASync(DynaliAction action, Class<R> responseClass) {
+        return CompletableFuture.supplyAsync(() -> {
+                    try {
+                        String serializedResponse = call(action);
+                        ObjectMapper mapper = new ObjectMapper();
+                        return mapper.readValue(serializedResponse, responseClass);
+                    } catch (IOException | DynaliException e) {
+//                        TODO: handle exception
+                    }
+                }
+        );
+    }
+
+    private String call(DynaliAction action) throws IOException, DynaliException {
+        validateAction(action);
+        HttpPost request = prepareRequest(action);
         HttpResponse response = handleRequest(request);
         return new BasicResponseHandler().handleResponse(response);
     }
 
-    private static CompletableFuture<String> callASync(StringEntity params, boolean useDevEnv) {
+    private CompletableFuture<String> callASync(DynaliAction action) {
         return CompletableFuture.supplyAsync(() -> {
                     try {
-                        return call(params, useDevEnv);
-                    } catch (IOException e) {
+                        return call(action);
+                    } catch (IOException | DynaliException e) {
                         return "failed";
                     }
                 }
         );
     }
 
-    private static HttpPost prepareRequest(StringEntity params, boolean useDevEnv) {
-        HttpPost request = chooseURL(useDevEnv);
+    private void validateAction(DynaliAction action) {
+        List<String> validationErrors = action.getValidationErrors();
+        if (!validationErrors.isEmpty()) {
+            throw new IllegalArgumentException("Invalid request parameters: " + String.join(", ", validationErrors));
+        }
+    }
+
+    private HttpPost prepareRequest(DynaliAction action) throws DynaliException {
+        HttpPost request = chooseURL();
         request.addHeader("content-type", "application/json");
+        StringEntity params = action.toJson();
         request.setEntity(params);
         return request;
     }
 
-    private static HttpPost chooseURL(boolean useDevEnv) {
-        return new HttpPost(useDevEnv ? ENDPOINT_DEBUG : ENDPOINT_LIVE);
+    private HttpPost chooseURL() {
+        return new HttpPost(DynaliEnvironment == DynaliEnvironmentTarget.DEBUG ? ENDPOINT_DEBUG : ENDPOINT_LIVE);
     }
 
-    private static HttpResponse handleRequest(HttpPost request) throws IOException {
+    private HttpResponse handleRequest(HttpPost request) throws IOException {
         HttpClient httpClient = HttpClientBuilder.create().build();
         return httpClient.execute(request);
     }
 
-    public static void main(String[] args) throws IOException, DynaliException, InterruptedException {
+    private boolean isResponseSuccessful(int responseCode) {
+        return responseCode != 200;
+    }
+
+    public void main(String[] args) throws IOException, DynaliException, InterruptedException {
 //        System.out.println(retrieveMyIP());
-        callASync(new StringEntity("{\"action\":\"myip\"}"), false).thenAcceptAsync((resultValue) -> {
+        callASync(new StringEntity("{\"action\":\"myip\"}")).thenAcceptAsync((resultValue) -> {
                     System.out.println(resultValue);
                 }
         );

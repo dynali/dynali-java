@@ -1,13 +1,13 @@
-package com.dynali;
+package com.dynali.response;
 
-class Data {
+public class Data {
     private String ip;
 
     void setIp(String ip) {
         this.ip = ip;
     }
 
-    String getIp() {
+    public String getIp() {
         return ip;
     }
 

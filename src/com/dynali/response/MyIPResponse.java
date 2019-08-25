@@ -1,6 +1,6 @@
-package com.dynali;
+package com.dynali.response;
 
-class MyIPResponse {
+public class MyIPResponse extends Response {
     private String status;
     private int code;
     private String message;
@@ -18,7 +18,7 @@ class MyIPResponse {
         this.code = code;
     }
 
-    int getCode() {
+    public int getCode() {
         return code;
     }
 
@@ -26,7 +26,7 @@ class MyIPResponse {
         this.message = message;
     }
 
-    String getMessage() {
+    public String getMessage() {
         return message;
     }
 
@@ -34,7 +34,7 @@ class MyIPResponse {
         this.data = data;
     }
 
-    Data getData() {
+    public Data getData() {
         return data;
     }
 }
