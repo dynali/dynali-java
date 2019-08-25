@@ -43,15 +43,13 @@ public class DynaliClient {
     private <R extends Response> CompletableFuture<Response> executeActionASync(DynaliAction action, Class<R> responseClass) {
         return CompletableFuture.supplyAsync(() -> {
                     try {
-                        String serializedResponse = call(action);
-                        ObjectMapper mapper = new ObjectMapper();
-                        return mapper.readValue(serializedResponse, responseClass);
+                        return executeAction(action, responseClass);
                     } catch (IOException | DynaliException e) {
-//                        TODO: handle exception
+                        return new MyIPResponse(); //TODO: clumsy
                     }
                 }
         );
-    }
+        }
 
     private String call(DynaliAction action) throws IOException, DynaliException {
         validateAction(action);
